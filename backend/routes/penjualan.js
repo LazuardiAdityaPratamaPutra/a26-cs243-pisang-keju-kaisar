@@ -1,27 +1,27 @@
-import { Router } from "express";
-import { pool } from "../db.js";
+import { Router } from 'express';
+import { pool } from '../db.js';
 
 const router = Router();
 
 const galat = (res, status, kode, pesan) =>
   res.status(status).json({ error: { kode, pesan } });
 
-router.get("/menu", async (req, res) => {
+router.get('/menu', async (req, res) => {
   try {
     const menu = await pool.query(
-      "SELECT id, nama, harga FROM menu ORDER BY id",
+      'SELECT id, nama, harga FROM menu ORDER BY id',
     );
     const topping = await pool.query(
-      "SELECT id, nama, harga FROM topping ORDER BY id",
+      'SELECT id, nama, harga FROM topping ORDER BY id',
     );
     res.json({ menu: menu.rows, topping: topping.rows });
   } catch (err) {
     console.error(err);
-    galat(res, 500, "SERVER_ERROR", "Gagal memuat menu. Coba lagi.");
+    galat(res, 500, 'SERVER_ERROR', 'Gagal memuat menu. Coba lagi.');
   }
 });
 
-router.post("/sales", async (req, res) => {
+router.post('/sales', async (req, res) => {
   try {
     const { menu_id, topping_id, jumlah } = req.body;
 
@@ -30,8 +30,8 @@ router.post("/sales", async (req, res) => {
       return galat(
         res,
         400,
-        "INPUT_TIDAK_VALID",
-        "Pilih menu terlebih dahulu.",
+        'INPUT_TIDAK_VALID',
+        'Pilih menu terlebih dahulu.',
       );
     }
 
@@ -40,34 +40,34 @@ router.post("/sales", async (req, res) => {
       return galat(
         res,
         400,
-        "INPUT_TIDAK_VALID",
-        "Jumlah harus angka bulat antara 1 dan 99.",
+        'INPUT_TIDAK_VALID',
+        'Jumlah harus angka bulat antara 1 dan 99.',
       );
     }
 
     let toppingId = null;
-    if (topping_id !== undefined && topping_id !== null && topping_id !== "") {
+    if (topping_id !== undefined && topping_id !== null && topping_id !== '') {
       toppingId = Number(topping_id);
       if (!Number.isInteger(toppingId) || toppingId <= 0) {
-        return galat(res, 400, "INPUT_TIDAK_VALID", "Topping tidak valid.");
+        return galat(res, 400, 'INPUT_TIDAK_VALID', 'Topping tidak valid.');
       }
     }
 
-    const menu = await pool.query("SELECT harga FROM menu WHERE id = $1", [
+    const menu = await pool.query('SELECT harga FROM menu WHERE id = $1', [
       menuId,
     ]);
     if (menu.rowCount === 0) {
-      return galat(res, 400, "INPUT_TIDAK_VALID", "Menu tidak ditemukan.");
+      return galat(res, 400, 'INPUT_TIDAK_VALID', 'Menu tidak ditemukan.');
     }
     const hargaSatuan = menu.rows[0].harga;
 
     let hargaTopping = 0;
     if (toppingId !== null) {
-      const tp = await pool.query("SELECT harga FROM topping WHERE id = $1", [
+      const tp = await pool.query('SELECT harga FROM topping WHERE id = $1', [
         toppingId,
       ]);
       if (tp.rowCount === 0) {
-        return galat(res, 400, "INPUT_TIDAK_VALID", "Topping tidak ditemukan.");
+        return galat(res, 400, 'INPUT_TIDAK_VALID', 'Topping tidak ditemukan.');
       }
       hargaTopping = tp.rows[0].harga;
     }
@@ -92,22 +92,22 @@ router.post("/sales", async (req, res) => {
 
     res
       .status(201)
-      .json({ pesan: "Penjualan tersimpan.", data: hasil.rows[0] });
+      .json({ pesan: 'Penjualan tersimpan.', data: hasil.rows[0] });
   } catch (err) {
     console.error(err);
-    galat(res, 500, "SERVER_ERROR", "Gagal menyimpan penjualan. Coba lagi.");
+    galat(res, 500, 'SERVER_ERROR', 'Gagal menyimpan penjualan. Coba lagi.');
   }
 });
 
-router.get("/sales", async (req, res) => {
+router.get('/sales', async (req, res) => {
   try {
     let tanggal = req.query.tanggal;
     if (tanggal !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
       return galat(
         res,
         400,
-        "PARAMETER_TIDAK_VALID",
-        "Format tanggal harus YYYY-MM-DD.",
+        'PARAMETER_TIDAK_VALID',
+        'Format tanggal harus YYYY-MM-DD.',
       );
     }
     if (tanggal === undefined) {
@@ -128,7 +128,7 @@ router.get("/sales", async (req, res) => {
       [tanggal],
     );
 
-    const selesai = hasil.rows.filter((r) => r.status === "selesai");
+    const selesai = hasil.rows.filter((r) => r.status === 'selesai');
     const totalHari = selesai.reduce((jml, r) => jml + r.total, 0);
 
     res.json({
@@ -138,11 +138,109 @@ router.get("/sales", async (req, res) => {
       data: hasil.rows,
     });
   } catch (err) {
-    if (err.code && err.code.startsWith("22")) {
-      return galat(res, 400, "PARAMETER_TIDAK_VALID", "Tanggal tidak valid.");
+    if (err.code && err.code.startsWith('22')) {
+      return galat(res, 400, 'PARAMETER_TIDAK_VALID', 'Tanggal tidak valid.');
     }
     console.error(err);
-    galat(res, 500, "SERVER_ERROR", "Gagal memuat riwayat. Coba lagi.");
+    galat(res, 500, 'SERVER_ERROR', 'Gagal memuat riwayat. Coba lagi.');
+  }
+});
+
+const KOLOM_HASIL =
+  "id_transaksi, to_char(tanggal, 'YYYY-MM-DD') AS tanggal, to_char(jam, 'HH24:MI') AS jam, menu_id, topping_id, jumlah, harga_satuan, harga_topping, total, status";
+
+const ambilCatatan = async (res, id) => {
+  const { rows } = await pool.query(
+    'SELECT id_transaksi, sumber, status FROM transaksi WHERE id_transaksi = $1',
+    [id],
+  );
+  if (rows.length === 0) {
+    galat(res, 404, 'TIDAK_DITEMUKAN', 'Catatan penjualan tidak ditemukan.');
+    return null;
+  }
+  if (rows[0].sumber !== 'aplikasi') {
+    galat(
+      res,
+      403,
+      'DATA_CONTOH_DILINDUNGI',
+      'Data contoh tidak boleh diubah atau dihapus.',
+    );
+    return null;
+  }
+  return rows[0];
+};
+
+router.put('/sales/:id', async (req, res) => {
+  try {
+    const qty = Number(req.body?.jumlah);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
+      return galat(
+        res,
+        400,
+        'INPUT_TIDAK_VALID',
+        'Jumlah harus angka bulat antara 1 dan 99.',
+      );
+    }
+    const catatan = await ambilCatatan(res, req.params.id);
+    if (!catatan) return;
+    if (catatan.status !== 'selesai') {
+      return galat(
+        res,
+        400,
+        'STATUS_TIDAK_VALID',
+        'Catatan yang sudah dibatalkan tidak bisa diubah.',
+      );
+    }
+    const hasil = await pool.query(
+      `UPDATE transaksi
+      SET jumlah = $1, total =$1 * (harga_satuan + harga_topping)
+      WHERE id_transaksi = $2 AND status = 'selesai'
+      RETURNING ${KOLOM_HASIL}`,
+      [qty, req.params.id],
+    );
+    res.json({ pesan: 'Jumlah diperbarui.', data: hasil.rows[0] });
+  } catch (err) {
+    console.error(err);
+    galat(res, 500, 'SERVER_ERROR', 'Gagal mengubah catatan. Coba lagi.');
+  }
+});
+
+router.delete('/sales/:id', async (req, res) => {
+  try {
+    const catatan = await ambilCatatan(res, req.params.id);
+    if (!catatan) return;
+    await pool.query('DELETE FROM transaksi WHERE id_transaksi = $1', [
+      req.params.id,
+    ]);
+    res.json({ pesan: 'Catatan dihapus.' });
+  } catch (err) {
+    console.error(err);
+    galat(res, 500, 'SERVER_ERROR', 'Gagal menghapus catatan. Coba lagi.');
+  }
+});
+
+router.post('/sales/:id/cancel', async (req, res) => {
+  try {
+    const catatan = await ambilCatatan(res, req.params.id);
+    if (!catatan) return;
+    if (catatan.status === 'batal') {
+      return galat(
+        res,
+        400,
+        'STATUS_TIDAK_VALID',
+        'Catatan ini sudah dibatalkan sebelumnya.',
+      );
+    }
+    const hasil = await pool.query(
+      `UPDATE transaksi SET status = 'batal'
+      WHERE id_transaksi = $1 AND status = 'selesai'
+      RETURNING ${KOLOM_HASIL}`,
+      [req.params.id],
+    );
+    res.json({ pesan: 'Catatan dibatalkan.', data: hasil.rows[0] });
+  } catch (err) {
+    console.error(err);
+    galat(res, 500, 'SERVER_ERROR', 'Gagal membatalkan catatan. Coba lagi.');
   }
 });
 
