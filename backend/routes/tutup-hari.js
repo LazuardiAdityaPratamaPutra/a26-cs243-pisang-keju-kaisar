@@ -8,6 +8,7 @@ const galat = (res, status, kode, pesan) =>
 
 // Sebelum tanggal ini  = data contoh Data Science, tidak boleh ditimpa
 const TANGGAL_MULAI = '2026-11-01';
+const UANG_MAKSIMAL = 100_000_000; // 100 juta
 const hariIniWIB = async () => {
   const r = await pool.query(
     `SELECT to_char((now() AT TIME ZONE 'Asia/Jakarta')::date, 'YYYY-MM-DD') AS t`,
@@ -23,7 +24,7 @@ const tanggalValid = (t) => {
 };
 
 const PESAN_TANGGAL =
-  'Tanggal tidak valid. Gunakan Format YYYY-MM-DD, contoh 2026-11-22.';
+  'Tanggal tidak valid. Gunakan format TTTT-BB-HH, contoh 2026-11-22.';
 
 // 1. Lihat total sebelum menutup (harus di atas /closing/:tanggal)
 router.get('/closing/preview', async (req, res) => {
@@ -65,7 +66,7 @@ router.get('/closing/preview', async (req, res) => {
         total_sistem: total.rows[0].total_sistem,
         jumlah_transaksi: total.rows[0].jumlah_transaksi,
         rincian: rincian.rows,
-        sudah_ditutup: rekap.rowCount.rowCount > 0,
+        sudah_ditutup: rekap.rowCount > 0,
       },
     });
   } catch (err) {
@@ -100,6 +101,14 @@ router.post('/closing', async (req, res) => {
         400,
         'INPUT_TIDAK_VALID',
         'Isi uang hasil hitungan dengan angka.',
+      );
+    }
+    if (uang > UANG_MAKSIMAL) {
+      return galat(
+        res,
+        400,
+        'INPUT_TIDAK_VALID',
+        'Uang hasil hitungan terlalu besar. Maksimal Rp100.000.000.',
       );
     }
 
@@ -152,7 +161,7 @@ router.get('/closing/:tanggal', async (req, res) => {
   try {
     const { tanggal } = req.params;
     if (!tanggalValid(tanggal)) {
-      return (galat(res, 400, 'TANGGAL_TIDAK_VALID'), PESAN_TANGGAL);
+      return galat(res, 400, 'TANGGAL_TIDAK_VALID', PESAN_TANGGAL);
     }
 
     const r = await pool.query(
@@ -165,7 +174,7 @@ router.get('/closing/:tanggal', async (req, res) => {
     if (r.rowCount === 0) {
       return galat(
         res,
-        400,
+        404,
         'TIDAK_DITEMUKAN',
         'Rekap untuk tanggal ini belum tersimpan.',
       );
